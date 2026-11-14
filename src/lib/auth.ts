@@ -3,11 +3,12 @@
  *
  * The server says how to sign in (`GET /api/app/auth`: the project's address
  * and its PUBLIC key -- the service key never leaves the server). With
- * accounts on, the panel signs in with Supabase -- a 6-digit code by e-mail,
- * or Google / Apple in this window -- and sends the session's access token to
- * the server, which lets it in only if the e-mail is on the admins list. The
- * code is only sent to an e-mail that already has an account
- * (`shouldCreateUser: false`): adding an admin makes theirs.
+ * accounts on, the panel signs in with Supabase -- e-mail and PASSWORD
+ * (2026-11-14, the user: "koda gerek yok"; the e-mail code needed a template
+ * the project's role could not change), or Google / Apple in this window --
+ * and sends the session's access token to the server, which lets it in only
+ * if the e-mail is on the admins list. An admin's password is set by another
+ * admin (Kullanıcılar → Yöneticiler) or on the server (`npm run admin:password`).
  *
  * Without accounts (development, or a server not yet given a project) the old
  * way stays: the server's ADMIN_TOKEN, typed once (`api.ts` → setToken).
@@ -51,21 +52,16 @@ const need = () => { if (!client) throw new Error("Hesaplar kurulmadı."); retur
 /** Supabase's messages, as a person reads them */
 function say(e: { message?: string; code?: string } | null): string {
   const m = `${e?.code ?? ""} ${e?.message ?? ""}`;
-  if (/otp_disabled|Signups not allowed/i.test(m)) return "Bu e-posta panelin yöneticileri arasında değil. Bir yöneticiden sizi eklemesini isteyin.";
-  if (/otp_expired|invalid|expired/i.test(m)) return "Kod yanlış ya da süresi dolmuş. Yeni bir kod isteyin.";
+  if (/invalid_credentials|Invalid login credentials/i.test(m)) return "E-posta ya da şifre yanlış.";
+  if (/email_not_confirmed/i.test(m)) return "Bu hesabın e-postası onaylanmamış. Bir yöneticiden şifrenizi yeniden belirlemesini isteyin.";
   if (/rate|too many|security purposes/i.test(m)) return "Çok sık denendi; biraz bekleyip yeniden deneyin.";
   if (/banned/i.test(m)) return "Bu hesap engellenmiş.";
   if (/fetch|network/i.test(m)) return "Giriş sunucusuna ulaşılamıyor.";
   return e?.message || "Giriş başarısız.";
 }
 
-export async function sendCode(to: string): Promise<void> {
-  const { error } = await need().auth.signInWithOtp({ email: to.trim().toLowerCase(), options: { shouldCreateUser: false } });
-  if (error) throw new Error(say(error));
-}
-
-export async function verifyCode(to: string, code: string): Promise<void> {
-  const { data, error } = await need().auth.verifyOtp({ email: to.trim().toLowerCase(), token: code.trim(), type: "email" });
+export async function signInPassword(to: string, password: string): Promise<void> {
+  const { data, error } = await need().auth.signInWithPassword({ email: to.trim().toLowerCase(), password });
   if (error) throw new Error(say(error));
   access = data.session?.access_token ?? "";
   email = data.session?.user.email ?? "";

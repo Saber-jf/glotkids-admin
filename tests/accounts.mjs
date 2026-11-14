@@ -1,10 +1,12 @@
 /**
  * ACCOUNTS in a real browser (2026-10-22): a server with accounts on, a FAKE
  * Supabase (`../loplop-server/tools/fake-supabase.ts`: real signed tokens,
- * codes "sent" to its own output) and the panel -- the e-mail code sign-in,
- * a non-admin turned away (by code, and by Google through the real PKCE round
- * trip), the user list with a parent's progress, ban / unban / delete, the
- * admins list, the audit, signing out.
+ * codes "sent" to its own output) and the panel -- the e-mail and password
+ * sign-in (2026-11-14; the app's parents still sign in with a code), a wrong
+ * password and a non-admin turned away (by password, and by Google through
+ * the real PKCE round trip), the user list with a parent's progress, ban /
+ * unban / delete, the admins list with a first password and "Şifre belirle",
+ * the audit, signing out.
  *
  *   npm run test:e2e        (runs after tests/e2e.mjs; Chrome must be installed)
  */
@@ -53,6 +55,16 @@ const web = spawn(path.join(PANEL_DIR, "node_modules/.bin/vite"), ["--port", Str
 const stop = () => { for (const c of [fake, srv, web]) try { c.kill(); } catch {} };
 process.on("exit", stop);
 
+/* an admin's password, as the server's `npm run admin:password` sets it */
+const BOSS_PW = "patron-sifresi-1";
+async function setPw(email, password) {
+  const h = { apikey: "fake-service-key", Authorization: "Bearer fake-service-key", "Content-Type": "application/json" };
+  const list = await (await fetch(`${AUTH}/auth/v1/admin/users?per_page=200`, { headers: h })).json();
+  const u = list.users.find((x) => x.email === email);
+  if (!u) return 0;
+  return (await fetch(`${AUTH}/auth/v1/admin/users/${u.id}`, { method: "PUT", headers: h, body: JSON.stringify({ password }) })).status;
+}
+
 /* a parent signs in "in the app" and backs up a progress document */
 async function parent(email) {
   const h = { apikey: "fake-anon-key", "Content-Type": "application/json" };
@@ -92,23 +104,23 @@ try {
     }, value);
   };
   const click = async (p, sel) => { await p.waitForSelector(sel, { timeout: 8000 }); await p.$eval(sel, (el) => el.click()); };
-  const signIn = async (p, email) => {
+  const signIn = async (p, email, password) => {
     await p.goto(WEB, { waitUntil: "networkidle0" });
     await typeInto(p, '[data-testid="login-email"]', email);
-    await click(p, '[data-testid="login-send"]');
-    const c = await code(email);
-    if (!c) throw new Error(`kod gelmedi: ${await p.$eval('[data-testid="login-error"]', (e) => e.innerText).catch(() => "?")}`);
-    await typeInto(p, '[data-testid="login-code"]', c ?? "000000");
-    await click(p, '[data-testid="login-verify"]');
+    await typeInto(p, '[data-testid="login-password"]', password);
+    await click(p, '[data-testid="login-go"]');
   };
 
   console.log("\n1 · giriş");
   const p = await fresh();
   await p.goto(WEB, { waitUntil: "networkidle0" });
-  ok("giriş ekranı: e-posta, Google, Apple", !!(await p.$('[data-testid="login-email"]')) && !!(await p.$('[data-testid="login-google"]'))
-     && !!(await p.$('[data-testid="login-apple"]')));
-  await signIn(p, BOSS);
-  ok("yönetici e-posta koduyla girer", !!(await until(async () => /Genel bakış/.test(await text(p)) && !(await p.$('[data-testid="login-email"]')))));
+  ok("giriş ekranı: e-posta, şifre, Google, Apple; kod yok", !!(await p.$('[data-testid="login-email"]')) && !!(await p.$('[data-testid="login-password"]'))
+     && !!(await p.$('[data-testid="login-google"]')) && !!(await p.$('[data-testid="login-apple"]')) && !(await p.$('[data-testid="login-send"]')));
+  ok("yöneticinin şifresi sunucudaki gibi belirlenir", !!(await until(async () => (await setPw(BOSS, BOSS_PW)) === 200, 10000)));
+  await signIn(p, BOSS, "yanlis-sifre-99");
+  ok("yanlış şifre: girmez, söylenir", !!(await until(async () => /E-posta ya da şifre yanlış/.test(await text(p)))));
+  await signIn(p, BOSS, BOSS_PW);
+  ok("yönetici e-posta ve şifreyle girer", !!(await until(async () => /Genel bakış/.test(await text(p)) && !(await p.$('[data-testid="login-email"]')))));
   ok("üst çubukta kim olduğu", !!(await until(async () => (await text(p)).includes(BOSS))));
 
   console.log("\n2 · kullanıcılar");
@@ -131,21 +143,40 @@ try {
   await p.evaluate(() => [...document.querySelectorAll('[role="tab"]')].find((e) => e.textContent.includes("Yöneticiler"))
     ?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
   await typeInto(p, '[data-testid="admin-email"]', "ayse@ornek.test");
+  await typeInto(p, '[data-testid="admin-password"]', "ayse-ilk-sifre");
   await click(p, '[data-testid="admin-add"]');
-  ok("yönetici eklenir", !!(await until(async () => !!(await p.$('[data-testid="admin-ayse@ornek.test"]')))));
+  ok("yönetici ilk şifresiyle eklenir", !!(await until(async () => !!(await p.$('[data-testid="admin-ayse@ornek.test"]')))));
+  {
+    const a = await fresh();
+    await signIn(a, "ayse@ornek.test", "ayse-ilk-sifre");
+    ok("yeni yönetici o şifreyle girer", !!(await until(async () => /Genel bakış/.test(await text(a)))));
+  }
+  await click(p, '[data-testid="admin-setpw-ayse@ornek.test"]');
+  await typeInto(p, '[data-testid="setpw-a"]', "ayse-yeni-sifre");
+  await typeInto(p, '[data-testid="setpw-b"]', "ayse-yeni-sifre");
+  await click(p, '[data-testid="setpw-go"]');
+  ok("şifre belirle: kaydedilir", !!(await until(async () => /yeni şifre belirlendi/.test(await text(p)))));
+  {
+    const a = await fresh();
+    await signIn(a, "ayse@ornek.test", "ayse-ilk-sifre");
+    ok("eski şifre artık girmez", !!(await until(async () => /E-posta ya da şifre yanlış/.test(await text(a)))));
+    await signIn(a, "ayse@ornek.test", "ayse-yeni-sifre");
+    ok("yeni şifreyle girer", !!(await until(async () => /Genel bakış/.test(await text(a)))));
+  }
   await click(p, '[data-testid="admin-remove-ayse@ornek.test"]');
   ok("yönetici çıkarılır", !!(await until(async () => !(await p.$('[data-testid="admin-ayse@ornek.test"]')))));
   await p.evaluate(() => [...document.querySelectorAll('[role="tab"]')].find((e) => e.textContent.includes("İşlem kaydı"))
     ?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
-  const log = await until(async () => { const t = await text(p); return /hesabı sildi/.test(t) && /hesabı engelledi/.test(t) && /yönetici ekledi/.test(t) ? t : null; });
-  ok("işlem kaydında silme, engelleme, ekleme", !!log);
+  const log = await until(async () => { const t = await text(p); return /hesabı sildi/.test(t) && /hesabı engelledi/.test(t) && /yönetici ekledi/.test(t) && /şifre belirledi/.test(t) ? t : null; });
+  ok("işlem kaydında silme, engelleme, ekleme, şifre (şifrenin kendisi değil)", !!log && !/ayse-yeni-sifre|ayse-ilk-sifre/.test(log));
 
   console.log("\n4 · yönetici olmayanlar");
   const q = await fresh();
   await q.goto(WEB, { waitUntil: "networkidle0" });
   await typeInto(q, '[data-testid="login-email"]', "yabanci@ornek.test");
-  await click(q, '[data-testid="login-send"]');
-  ok("kayıtlı olmayan e-postaya kod gitmez, söylenir", !!(await until(async () => /yöneticileri arasında değil/.test(await text(q)))));
+  await typeInto(q, '[data-testid="login-password"]', "bir-sifre-123");
+  await click(q, '[data-testid="login-go"]');
+  ok("hesabı olmayan e-posta girmez, söylenir", !!(await until(async () => /E-posta ya da şifre yanlış/.test(await text(q)))));
   await click(q, '[data-testid="login-google"]');
   ok("Google ile giren ama yönetici olmayan: yetki yok ekranı", !!(await until(async () => !!(await q.$('[data-testid="login-forbidden"]')), 15000)));
   ok("adresinde kod kalmaz", !/code=/.test(q.url()));

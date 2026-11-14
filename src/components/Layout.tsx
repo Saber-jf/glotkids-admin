@@ -198,11 +198,11 @@ function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild tooltip="Tavşanın Mutfağı">
+            <SidebarMenuButton size="lg" asChild tooltip="GlotKids">
               <Link to="/" onClick={() => setOpenMobile(false)}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-base text-primary-foreground">🐰</div>
                 <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate font-semibold">Tavşanın Mutfağı</span>
+                  <span className="truncate font-semibold">GlotKids</span>
                   <span className="truncate text-xs text-muted-foreground">İçerik yönetimi</span>
                 </div>
               </Link>
@@ -247,7 +247,7 @@ function Crumbs() {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem className="hidden md:block">
-          {here ? <BreadcrumbLink asChild><Link to="/">Tavşanın Mutfağı</Link></BreadcrumbLink> : <BreadcrumbPage>Genel bakış</BreadcrumbPage>}
+          {here ? <BreadcrumbLink asChild><Link to="/">GlotKids</Link></BreadcrumbLink> : <BreadcrumbPage>Genel bakış</BreadcrumbPage>}
         </BreadcrumbItem>
         {here && <>
           <BreadcrumbSeparator className="hidden md:block" />

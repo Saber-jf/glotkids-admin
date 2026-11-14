@@ -523,8 +523,12 @@ export const getMe = () => req<Me>("/auth/me");
 
 export interface Admin { email: string; name: string; addedBy: string; createdAt: number; lastLoginAt: number | null; bound: boolean; seeded: boolean }
 export const listAdmins = () => req<Admin[]>("/admins");
-export const addAdmin = (email: string, name: string) =>
-  req<{ email: string; account: "created" | "existing" | "later" }>("/admins", json("POST", { email, name }));
+export const addAdmin = (email: string, name: string, password?: string) =>
+  req<{ email: string; account: "created" | "existing" | "later"; password?: boolean }>("/admins",
+    json("POST", { email, name, ...(password ? { password } : {}) }));
+/** an admin's panel password (2026-11-14): sent to the server, which hands it to Supabase only */
+export const setAdminPassword = (email: string, password: string) =>
+  req<{ ok: true }>(`/admins/${enc(email)}/password`, json("POST", { password }));
 export const removeAdmin = (email: string) => req<{ ok: true }>(`/admins/${enc(email)}`, { method: "DELETE" });
 
 export interface ProgressSummary { profiles: { label: string; stops: number; words: number; series: number; at: string | null }[] }

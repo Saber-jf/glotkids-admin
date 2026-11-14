@@ -2,7 +2,7 @@
  * THE PANEL'S DOOR (2026-10-22).
  *
  *   accounts on (the server has a Supabase project)
- *       sign in: a 6-digit code by e-mail, or Google / Apple; the server lets
+ *       sign in: e-mail and password (2026-11-14), or Google / Apple; the server lets
  *       the account in only if its e-mail is on the admins list -- any other
  *       signed-in account sees "not an admin" and may sign in with another
  *   accounts off (development, a server without a project)
@@ -13,9 +13,9 @@
  * file address uses comes first, S10).
  */
 import React from "react";
-import { KeyRound, LogIn, Mail, ShieldX } from "lucide-react";
+import { KeyRound, LogIn, ShieldX } from "lucide-react";
 import { AUTH_EVENT, ApiError, FORBIDDEN_EVENT, getKeys, refreshMedia, setToken } from "../api";
-import { loadAuthConfig, sendCode, signInWith, signOut, signedInEmail, startAuth, verifyCode, type AuthConfig } from "../lib/auth";
+import { loadAuthConfig, signInPassword, signInWith, signOut, signedInEmail, startAuth, type AuthConfig } from "../lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -73,7 +73,7 @@ function Frame({ icon, sub, children }: { icon: React.ReactNode; sub: string; ch
       <Card className="w-full max-w-sm">
         <CardHeader>
           <div className="mb-2"><IconTile>{icon}</IconTile></div>
-          <CardTitle className="text-lg">Tavşanın Mutfağı</CardTitle>
+          <CardTitle className="text-lg">GlotKids</CardTitle>
           <CardDescription>{sub}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">{children}</CardContent>
@@ -84,40 +84,30 @@ function Frame({ icon, sub, children }: { icon: React.ReactNode; sub: string; ch
 
 function AccountLogin({ providers }: { providers: AuthConfig["providers"] }) {
   const [email, setEmail] = React.useState("");
-  const [code, setCode] = React.useState("");
-  const [sent, setSent] = React.useState(false);
+  const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const run = async (f: () => Promise<void>) => {
     setBusy(true); setError("");
     try { await f(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
-  const ask = () => run(async () => { await sendCode(email); setSent(true); });
-  const go = () => run(async () => { await verifyCode(email, code); window.location.reload(); });
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const ready = emailOk && password.length > 0 && !busy;
+  const go = () => run(async () => { await signInPassword(email, password); window.location.reload(); });
   return (
     <Frame icon={<LogIn />} sub="İçerik yönetimi · yönetici girişi">
-      {providers.includes("email") && (!sent ? <>
-        <FormField label="E-posta" hint="Panelin yöneticileri arasındaki e-postanız. Ona 6 haneli bir giriş kodu gönderilir.">
+      {providers.includes("email") && <>
+        <FormField label="E-posta">
           <Input autoFocus type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                 onKeyDown={(e) => e.key === "Enter" && emailOk && ask()} data-testid="login-email" />
+                 onKeyDown={(e) => e.key === "Enter" && ready && go()} data-testid="login-email" />
         </FormField>
-        <Button className="w-full" disabled={!emailOk || busy} onClick={ask} data-testid="login-send">
-          {busy ? <Spinner data-icon="inline-start" /> : <Mail data-icon="inline-start" />}Kod gönder</Button>
-      </> : <>
-        <p className="text-sm text-muted-foreground"><b className="font-medium text-foreground">{email.trim().toLowerCase()}</b> adresine bir kod gönderildi.</p>
-        <FormField label="Giriş kodu">
-          <Input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={code}
-                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} onKeyDown={(e) => e.key === "Enter" && code.length >= 6 && go()}
-                 data-testid="login-code" />
+        <FormField label="Şifre" hint="Şifreniz yoksa ya da unuttuysanız bir yönetici Kullanıcılar → Yöneticiler'den belirler.">
+          <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)}
+                 onKeyDown={(e) => e.key === "Enter" && ready && go()} data-testid="login-password" />
         </FormField>
-        <Button className="w-full" disabled={code.length < 6 || busy} onClick={go} data-testid="login-verify">
+        <Button className="w-full" disabled={!ready} onClick={go} data-testid="login-go">
           {busy && <Spinner data-icon="inline-start" />}Giriş</Button>
-        <div className="flex justify-between text-sm">
-          <button type="button" className="underline underline-offset-2" onClick={() => { setSent(false); setCode(""); }}>Başka e-posta</button>
-          <button type="button" className="underline underline-offset-2" disabled={busy} onClick={ask}>Kodu yeniden gönder</button>
-        </div>
-      </>)}
+      </>}
       {(providers.includes("google") || providers.includes("apple")) && <>
         {providers.includes("email") && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="h-px flex-1 bg-border" />ya da<div className="h-px flex-1 bg-border" /></div>}
         {providers.includes("google") && <Button variant="outline" className="w-full" disabled={busy} onClick={() => run(() => signInWith("google"))}

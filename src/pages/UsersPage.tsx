@@ -12,19 +12,20 @@
  * accounts says how to set them up; the admins list can be written already.
  */
 import React from "react";
-import { Ban, CheckCircle2, ScrollText, Search, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
-import { addAdmin, ApiError, banAccount, codeOf, deleteAccount, deleteAccountProgress, getAccount, getMe, listAccounts, listAdmins, listAudit,
+import { Ban, CheckCircle2, KeyRound, ScrollText, Search, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { addAdmin, setAdminPassword, ApiError, banAccount, codeOf, deleteAccount, deleteAccountProgress, getAccount, getMe, listAccounts, listAdmins, listAudit,
          removeAdmin, type Account, type Admin, type AuditEntry, type Me } from "../api";
 import { EmptyState, FormField, Loading, Modal, ModalActions, Notice, PageHeader, Pill, fmtSize } from "../components/common";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const when = (t: number | null | undefined) => (t ? new Date(t).toLocaleString("tr", { dateStyle: "medium", timeStyle: "short" }) : "—");
 const PROVIDER: Record<string, string> = { email: "E-posta kodu", google: "Google", apple: "Apple" };
 const ACTION: Record<string, string> = {
-  "admin.add": "yönetici ekledi", "admin.remove": "yöneticilerden çıkardı", "admin.rebind": "hesabı yeniden bağlandı",
+  "admin.add": "yönetici ekledi", "admin.remove": "yöneticilerden çıkardı", "admin.password": "şifre belirledi", "admin.rebind": "hesabı yeniden bağlandı",
   "account.ban": "hesabı engelledi", "account.unban": "engeli kaldırdı", "account.delete": "hesabı sildi", "progress.delete": "ilerleme yedeğini sildi",
 };
 
@@ -227,16 +228,18 @@ function AdminsTab({ me }: { me: Me | null }) {
   const [list, setList] = React.useState<Admin[] | null>(null);
   const [email, setEmail] = React.useState("");
   const [name, setName] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [pwFor, setPwFor] = React.useState<Admin | null>(null);
   const [note, setNote] = React.useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const load = React.useCallback(() => { listAdmins().then(setList, (e) => setNote({ tone: "bad", text: (e as Error).message })); }, []);
   React.useEffect(() => { load(); }, [load]);
   const add = async () => {
     try {
-      const r = await addAdmin(email.trim(), name.trim());
+      const r = await addAdmin(email.trim(), name.trim(), password);
       setNote({ tone: "ok", text: r.account === "later"
-        ? `${r.email} eklendi. Hesaplar kurulunca bu e-postayla giriş yapabilecek.`
-        : `${r.email} eklendi. Panel adresine gidip e-postasına gelen kodla giriş yapabilir.` });
-      setEmail(""); setName(""); load();
+        ? `${r.email} eklendi. Hesaplar kurulunca giriş yapabilecek.`
+        : `${r.email} eklendi. Panel adresine gidip e-postası ve bu şifreyle giriş yapabilir.` });
+      setEmail(""); setName(""); setPassword(""); load();
     } catch (e) { setNote({ tone: "bad", text: (e as Error).message }); }
   };
   const remove = async (a: Admin) => {
@@ -244,12 +247,15 @@ function AdminsTab({ me }: { me: Me | null }) {
     try { await removeAdmin(a.email); load(); } catch (e) { setNote({ tone: "bad", text: (e as Error).message }); }
   };
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const pwOk = password.length >= MIN_PASSWORD;
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-2 rounded-lg border p-4">
         <FormField label="E-posta" className="min-w-64 flex-1"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="admin-email" /></FormField>
         <FormField label="Ad (isteğe bağlı)" className="min-w-48"><Input value={name} onChange={(e) => setName(e.target.value)} /></FormField>
-        <Button disabled={!emailOk} onClick={add} data-testid="admin-add"><UserPlus />Yönetici ekle</Button>
+        <FormField label={`Şifre (en az ${MIN_PASSWORD})`} className="min-w-48">
+          <Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} data-testid="admin-password" /></FormField>
+        <Button disabled={!emailOk || !pwOk} onClick={add} data-testid="admin-add"><UserPlus />Yönetici ekle</Button>
       </div>
       {note && <Notice tone={note.tone === "ok" ? "ok" : "bad"}>{note.text}</Notice>}
       {!list ? <Loading /> : (
@@ -263,16 +269,53 @@ function AdminsTab({ me }: { me: Me | null }) {
                 <TableCell>{a.addedBy || "—"}</TableCell>
                 <TableCell>{when(a.createdAt)}</TableCell>
                 <TableCell>{a.lastLoginAt ? when(a.lastLoginAt) : <span className="text-muted-foreground">henüz girmedi</span>}</TableCell>
-                <TableCell className="text-right">{me?.email !== a.email && !a.seeded &&
+                <TableCell className="text-right whitespace-nowrap">
+                  <Button size="sm" variant="ghost" onClick={() => setPwFor(a)} data-testid={`admin-setpw-${a.email}`}><KeyRound />Şifre belirle</Button>
+                  {me?.email !== a.email && !a.seeded &&
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(a)} data-testid={`admin-remove-${a.email}`}><Trash2 />Çıkar</Button>}</TableCell>
               </TableRow>
             ))}</TableBody>
           </Table>
         </div>
       )}
+      {pwFor && <SetPassword admin={pwFor} onClose={() => setPwFor(null)}
+                             onDone={(t) => { setPwFor(null); setNote({ tone: "ok", text: t }); }} />}
       <p className="text-sm text-muted-foreground">Panelde tek rol var: her yönetici her şeyi yapabilir (içerik, yayın, kullanıcılar). Sunucunun
         <code> ADMIN_EMAILS</code> ayarındaki e-postalar her açılışta geri eklenir; onları buradan çıkarmak için önce o ayardan çıkarın.</p>
     </div>
+  );
+}
+
+/** the panel's passwords are Supabase's: at least this long (the server says so too) */
+const MIN_PASSWORD = 8;
+
+/** an admin's password: typed twice, sent to the server, which gives it to Supabase only */
+function SetPassword({ admin, onClose, onDone }: { admin: Admin; onClose: () => void; onDone: (text: string) => void }) {
+  const [a, setA] = React.useState("");
+  const [b, setB] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const ok = a.length >= MIN_PASSWORD && a === b && !busy;
+  const go = async () => {
+    setBusy(true); setError("");
+    try { await setAdminPassword(admin.email, a); onDone(`${admin.email} için yeni şifre belirlendi.`); }
+    catch (e) { setError((e as Error).message); setBusy(false); }
+  };
+  return (
+    <Modal title="Şifre belirle" onClose={onClose}
+           description={`${admin.email} panele bu şifreyle girer. Şifre Supabase'te tutulur; panel ve sunucu saklamaz.`}>
+      <FormField label={`Yeni şifre (en az ${MIN_PASSWORD} karakter)`}>
+        <Input autoFocus type="password" autoComplete="new-password" value={a} onChange={(e) => setA(e.target.value)} data-testid="setpw-a" /></FormField>
+      <FormField label="Bir daha">
+        <Input type="password" autoComplete="new-password" value={b} onChange={(e) => setB(e.target.value)}
+               onKeyDown={(e) => e.key === "Enter" && ok && go()} data-testid="setpw-b" /></FormField>
+      {a && b && a !== b && <p className="text-sm text-destructive">İki şifre aynı değil.</p>}
+      {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+      <ModalActions>
+        <Button variant="outline" onClick={onClose}>Vazgeç</Button>
+        <Button disabled={!ok} onClick={go} data-testid="setpw-go">{busy && <Spinner data-icon="inline-start" />}Kaydet</Button>
+      </ModalActions>
+    </Modal>
   );
 }
 
