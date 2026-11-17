@@ -790,7 +790,7 @@ try {
     if (typeof app.meadow?.setMapRows === "function") {
       const sl = remote.roadmap[0].slide;
       app.meadow.setMapRows([{ id: sl.id, title: sl.title, kinds: sl.stops.map((x) => x.kind) }]);
-      ok("uygulamanın haritası büyür: 7 sıra, 4 sayfa (sayfa başına iki sıra)", app.meadow.ROWS.length === 7 && app.meadow.PAGES === 4,
+      ok("uygulamanın haritası büyür: 7 sıra, 7 bölüm (tek yönlü yol, bölüm başına bir sıra)", app.meadow.ROWS.length === 7 && app.meadow.PAGES === 7,
          `${app.meadow.ROWS.length} sıra, ${app.meadow.PAGES} sayfa`);
       app.meadow.setMapRows([]);
     } else console.log("  not  uygulamanın core/meadowmap.ts'inde setMapRows yok; haritanın büyümesi uygulama tarafında denenir");
@@ -1646,6 +1646,42 @@ try {
     ok("taslakta bu palet (telefona gider)", d.body.manifest.palette?.colors?.background?.start === "#FFE6CF"
        && d.body.counts.palette === "Sabah Çayırı" && d.body.diff.test.added.some((x) => /renk paleti/.test(x)), JSON.stringify(d.body.counts));
     for (const x of (await api("GET", "/api/palettes")).body.list) await api("DELETE", `/api/palettes/${x.id}`);
+    await p.close();
+  }
+
+  console.log("\nŞarkı videoları · ekle, video + kapak, hak onayı, uygulamaya koy, Yayınla sayısı (2026-11-17)");
+  {
+    const p = await tab();
+    await p.goto(`${WEB}/sarki-videolari`, { waitUntil: "networkidle0" });
+    ok("sol menüde Şarkı videoları; boşken ne olacağı yazar", !!(await until(async () => {
+      const t = await text(p);
+      return /Şarkı videoları/.test(t) && /Henüz şarkı videosu yok/.test(t);
+    })));
+    await p.type('[data-testid="sv-new-title"]', "Mutfak şarkısı");
+    await p.select('[data-testid="sv-new-category"]', "kitchen");
+    await p.click('[data-testid="sv-new"]');
+    const made = await until(async () => (await api("GET", "/api/song-videos")).body.list.find((x) => x.title === "Mutfak şarkısı"));
+    ok("eklenir: taslak, mutfağa bağlı", !!made && made.status === "draft" && made.category === "kitchen");
+    const film = await upload(readFileSync(path.join(APP_DIR, "src/assets/video/sample-4x3.mp4")), "mutfak.mp4", "video/mp4");
+    const pic = await upload(readFileSync(path.join(APP_DIR, "src/assets/icons/apple.png")), "kapak.png", "image/png");
+    await api("PATCH", `/api/song-videos/${made.id}`, { video: film.id, poster: pic.id });
+    await p.reload({ waitUntil: "networkidle0" });
+    ok("hak onayı yokken uyarı ve “Uygulamaya koy” kapalı", !!(await until(async () =>
+      p.evaluate(() => /kullanım hakkı onaylanmadı/.test(document.body.innerText) && !!document.querySelector('[data-testid="sv-live"]')?.disabled))));
+    await p.click('[data-testid="sv-rights"]');
+    ok("onaylanınca “Uygulamaya koy” açılır", !!(await until(async () =>
+      p.evaluate(() => document.querySelector('[data-testid="sv-live"]') && !document.querySelector('[data-testid="sv-live"]').disabled))));
+    await p.click('[data-testid="sv-live"]');
+    ok("uygulamaya konur", !!(await until(async () => (await api("GET", "/api/song-videos")).body.list.find((x) => x.id === made.id)?.status === "live")));
+    const d = await api("GET", "/api/releases/draft");
+    ok("taslakta video; film yayını bekletmez (lazy)", d.body.manifest.songVideos?.list?.length === 1 && d.body.manifest.songVideos.lazy[0] === film.id
+       && d.body.counts.songVideos === 1, JSON.stringify(d.body.counts));
+    await p.goto(`${WEB}/yayinla`, { waitUntil: "networkidle0" });
+    ok("Yayınla sayfası videoyu sayar ve filmin sonra indiğini söyler", !!(await until(async () => {
+      const t = await text(p);
+      return /şarkı videosu/.test(t) && /yayınla birlikte inmez/.test(t);
+    })));
+    for (const x of (await api("GET", "/api/song-videos")).body.list) await api("DELETE", `/api/song-videos/${x.id}`);
     await p.close();
   }
 

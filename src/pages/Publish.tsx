@@ -72,14 +72,14 @@ export function Publish() {
 
   const head = (c: Channel) => rel?.channels.find((x) => x.name === c)?.release ?? null;
   const nameOf = (kind: DraftIssue["kind"], id: string) => kind === "roadmap" ? `harita sırası ${id}`
-    : kind === "pack" ? `paket ${id}` : kind === "mascot" ? `maskot ${id}` : kind === "song" ? `şarkı ${id}` : kind === "game"
+    : kind === "pack" ? `paket ${id}` : kind === "mascot" ? `maskot ${id}` : kind === "song" ? `şarkı ${id}` : kind === "songvideo" ? `şarkı videosu ${id}` : kind === "game"
     ? games.games.find((g) => g.id === id)?.name ?? id
     : kind === "category" ? cats.categories.find((c) => c.id === id)?.title ?? id
     : kind === "asset" ? `dosya ${id}` : `kayıt ${id}`;
   /* UX02: every issue links to the form that fixes it */
   const linkOf = (kind: DraftIssue["kind"], id: string): string | null => kind === "category" ? `/kategoriler/${id}`
     : kind === "game" ? `/oyunlar/${id}` : kind === "roadmap" ? `/yol-haritasi/${id}` : kind === "pack" ? `/paketler/${id}`
-    : kind === "mascot" ? `/maskotlar/${id}` : kind === "song" ? `/muzik/${id}` : kind === "clip" ? "/ses-studyosu" : null;
+    : kind === "mascot" ? `/maskotlar/${id}` : kind === "song" ? `/muzik/${id}` : kind === "songvideo" ? "/sarki-videolari" : kind === "clip" ? "/ses-studyosu" : null;
   const errors = draft?.issues.filter((i) => i.level === "error") ?? [];
   const warns = draft?.issues.filter((i) => i.level === "warn") ?? [];
   const vsTest = draft?.diff.test;
@@ -151,9 +151,15 @@ export function Publish() {
                 {!!draft.counts.mascots && <Count n={draft.counts.mascots} label="maskot" />}
                 {!!draft.counts.fonts && <Count n={draft.counts.fonts} label="yazı tipi" />}
                 {!!draft.counts.palette && <Count n={draft.counts.palette} label="renk paleti" />}
+                {!!draft.counts.songVideos && <Count n={draft.counts.songVideos} label="şarkı videosu" />}
                 <Count n={draft.counts.assets} label="dosya" />
                 <Count n={fmtSize(draft.counts.bytes) || "0"} label="toplam" />
               </div>
+              {!!draft.counts.lazyBytes && (
+                <p className="mt-3 text-sm text-muted-foreground" data-testid="publish-lazy">
+                  Şarkı videoları ({fmtSize(draft.counts.lazyBytes)}) yayınla birlikte inmez: telefon bir videoyu ilk izlendiğinde sunucudan oynatır ve saklar. Kapak resimleri yayınla iner.
+                </p>
+              )}
               {(draft.manifest.packs ?? []).length > 0 && (
                 <div className="mt-4 rounded-lg border bg-muted/30 p-3">
                   <div className="text-sm font-medium">İndirme paketleri <span className="font-normal text-muted-foreground">· telefona listelenir, dosyaları yalnız bir büyüğün onayıyla iner</span></div>

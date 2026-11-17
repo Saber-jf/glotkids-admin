@@ -364,13 +364,15 @@ export type Channel = "test" | "production";
 export const CHANNELS: Channel[] = ["test", "production"];
 export interface Release { id: number; note: string; assets: number; bytes: number; createdAt: number; channels: Channel[] }
 export interface Diff { added: string[]; changed: string[]; removed: string[]; newBytes: number }
-export interface DraftIssue extends Issue { item: string; kind: "game" | "category" | "clip" | "asset" | "roadmap" | "pack" | "mascot" | "song" | "font" | "palette" }
+export interface DraftIssue extends Issue { item: string; kind: "game" | "category" | "clip" | "asset" | "roadmap" | "pack" | "mascot" | "song" | "font" | "palette" | "songvideo" }
 export interface Draft {
   issues: DraftIssue[]; blocked: boolean;
   /** what was shown: publishing sends it back and is refused if the draft moved on (A03) */
   fingerprint: string;
   diff: Record<Channel, Diff>;
-  counts: { games: number; categories: number; words: number; clips: number; assets: number; bytes: number; songs?: number; mascots?: number; fonts?: number; palette?: string };
+  counts: { games: number; categories: number; words: number; clips: number; assets: number; bytes: number; songs?: number; mascots?: number; fonts?: number; palette?: string;
+            /** the "Şarkılar" films, and the bytes of them a phone fetches only when one is watched */
+            songVideos?: number; lazyBytes?: number };
   manifest: {
     games: { id: string; name: string; template: string; requires: number }[];
     categories: { id: string; title: string; requires: number; pack?: string }[];
@@ -515,6 +517,24 @@ export const writeLyrics = (id: string, b: { jobId: string; provider: LyricsProv
   req<{ draft: LyricsDraft; job: unknown }>(`/songs/${enc(id)}/lyrics`, json("POST", b));
 export const sunoGenerate = (id: string) => req<unknown>(`/songs/${enc(id)}/suno`, json("POST", {}));
 export const textModels = (p: LyricsProvider) => req<{ models: string[] }>(`/ai/text-models/${p}`);
+
+/* ── song films (server: modules/songvideos.ts): the app's "Şarkılar" tab ── */
+
+export interface VideoCategory { id: string; title: string; kind: "app" | "panel" }
+export interface SongVideoRights { confirmed: boolean; owner: string; note: string }
+export interface SongVideo {
+  id: string; title: string; video: string | null; poster: string | null;
+  /** the map row that opens it on the phone; null: always open */
+  category: string | null; position: number; status: Status; note: string; rights: SongVideoRights;
+  durationMs: number | null; fit: "cover" | "contain"; createdAt: number; updatedAt: number; issues: Issue[];
+}
+export type SongVideoPatch = Partial<Pick<SongVideo, "title" | "video" | "poster" | "category" | "position" | "status" | "note" | "rights" | "durationMs" | "fit">>;
+export const listSongVideos = () => req<{ categories: VideoCategory[]; list: SongVideo[] }>("/song-videos");
+/** `op`: this request's operation id -- sent again (its answer lost), the server returns the film it made the first time */
+export const createSongVideo = (title: string, category: string | null, op?: string) =>
+  req<SongVideo>("/song-videos", json("POST", { title, category, ...(op ? { op } : {}) }));
+export const patchSongVideo = (id: string, p: SongVideoPatch, base?: number) => req<SongVideo>(`/song-videos/${enc(id)}`, json("PATCH", p, base));
+export const deleteSongVideo = (id: string) => req<{ ok: true }>(`/song-videos/${enc(id)}`, { method: "DELETE" });
 
 /* ── accounts (Supabase, 2026-10-22): who is signed in, the admins, the app's accounts ── */
 

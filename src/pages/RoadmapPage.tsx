@@ -2,7 +2,7 @@
  * YOL HARİTASI (drawn map, 2026-11-03; the app's docs/YOL-HARITASI-CIZILI.md).
  *
  * The app's only map is drawn by code: one ROW per category -- game stops
- * 1 · 2 · 3 and an optional music stop -- two rows a page. The app ships its
+ * 1 · 2 · 3 and an optional music stop -- one way, a row after a row. The app ships its
  * six rows (24 stops) in its bundle. A row made here is the next category on
  * the map: picked from the categories made on the Kategoriler page, its stops
  * built from that category's game steps. A release carries the live rows, in

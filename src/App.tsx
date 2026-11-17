@@ -22,6 +22,7 @@ import { MascotEdit, MascotsPage } from "./pages/MascotsPage";
 import { MusicPage, SongEdit } from "./pages/MusicPage";
 import { FontsPage } from "./pages/FontsPage";
 import { PalettesPage } from "./pages/PalettesPage";
+import { SongVideosPage } from "./pages/SongVideosPage";
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="muzik/:id" element={<SongEdit />} />
         <Route path="yazi-tipi" element={<FontsPage />} />
         <Route path="renk-paleti" element={<PalettesPage />} />
+        <Route path="sarki-videolari" element={<SongVideosPage />} />
         <Route path="kelime-setleri" element={<WordSets />} />
         <Route path="kelime-setleri/:id" element={<WordSetEdit />} />
         <Route path="kelimeler" element={<Words />} />

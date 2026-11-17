@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { AlertTriangle, BookA, Drama, Music, CheckCircle2, CloudOff, FolderTree, Gamepad2, Images, LayoutDashboard, Library, LogOut, Map as MapIcon, Package,
+import { AlertTriangle, BookA, Clapperboard, Drama, Music, CheckCircle2, CloudOff, FolderTree, Gamepad2, Images, LayoutDashboard, Library, LogOut, Map as MapIcon, Package,
          Mic, Monitor, Moon, Palette, SwatchBook, Receipt, RefreshCw, Rocket, Smartphone, Sun, Type, UserRound, Users } from "lucide-react";
 import { useStore } from "../store";
 import { getMascots, getMe, setToken, type Me } from "../api";
@@ -23,6 +23,7 @@ const GROUPS = [
     { to: "/paketler", label: "İndirme paketleri", icon: Package },
     { to: "/maskotlar", label: "Maskotlar", icon: Drama },
     { to: "/muzik", label: "Müzik", icon: Music },
+    { to: "/sarki-videolari", label: "Şarkı videoları", icon: Clapperboard },
     { to: "/yazi-tipi", label: "Yazı tipi", icon: Type },
     { to: "/renk-paleti", label: "Renk paleti", icon: SwatchBook },
     { to: "/oyunlar", label: "Oyunlar", icon: Gamepad2 },

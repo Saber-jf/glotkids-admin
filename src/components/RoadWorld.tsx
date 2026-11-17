@@ -1,6 +1,6 @@
 /**
  * The drawn map as a phone will lay it (the app's docs/YOL-HARITASI-CIZILI.md):
- * two rows a page, the app's own six rows first, then the rows made here, each
+ * one way, a row after a row (2026-11-17), the app's own six rows first, then the rows made here, each
  * stop a circle in the app's stop colours. A sketch, not the app's drawing --
  * the phone draws the meadow, the road and the signs itself; what matters here
  * is ORDER: which row comes after which, and which stops each one has.
@@ -22,8 +22,8 @@ export function mapRows(world: RoadWorld | null, slides: readonly RoadSlide[]): 
   ];
 }
 
-/* a page in the app is 1000 wide; its stops stand at these x (`core/meadowmap.ts` → STOP_X) */
-const PAGE_W = 1000, PAGE_H = 560, LANES = [190, 410] as const, STOP_X = [240, 420, 600, 780] as const;
+/* a row's stretch in the app is 1100 wide; its stops stand at these x (`core/meadowmap.ts` → SEG, STOP_X) */
+const PAGE_W = 1100, PAGE_H = 600, LANES = [330] as const, STOP_X = [270, 475, 680, 885] as const;
 
 export function MapPreview({ world, slides, focus, onPick, height = 190 }: {
   world: RoadWorld | null; slides: readonly RoadSlide[];
@@ -36,7 +36,7 @@ export function MapPreview({ world, slides, focus, onPick, height = 190 }: {
   /* a row still to come: where the next one goes */
   const all: (MapRow | null)[] = [...rows, null];
   const pages: (MapRow | null)[][] = [];
-  for (let i = 0; i < all.length; i += 2) pages.push(all.slice(i, i + 2));
+  for (let i = 0; i < all.length; i += 1) pages.push(all.slice(i, i + 1));
   const scroller = React.useRef<HTMLDivElement>(null);
   /* open at the end of the map: that is where the next row goes */
   React.useEffect(() => { const el = scroller.current; if (el) el.scrollLeft = el.scrollWidth; }, [rows.length]);
@@ -45,10 +45,10 @@ export function MapPreview({ world, slides, focus, onPick, height = 190 }: {
     <div ref={scroller} className="flex gap-2 overflow-x-auto rounded-lg border bg-emerald-50/60 p-2 dark:bg-emerald-950/30" data-testid="map-preview">
       {pages.map((page, p) => (
         <svg key={p} viewBox={`0 0 ${PAGE_W} ${PAGE_H}`} style={{ height, width: w }} className="block shrink-0 rounded-md bg-[#d9efc6] dark:bg-[#26402a]">
-          <text x={PAGE_W - 24} y={PAGE_H - 22} textAnchor="end" fontSize={30} fill="#5c7a4f" opacity={0.8}>{p + 1}. sayfa</text>
-          {/* the road: along the top row, round the right, back along the bottom */}
-          {page[0] && <path d={`M 150 ${LANES[0]} H 850 ${page[1] ? `C 940 ${LANES[0]}, 940 ${LANES[1]}, 850 ${LANES[1]} H 150` : ""}`}
-                            fill="none" stroke="#e9d3a4" strokeWidth={46} strokeLinecap="round" opacity={page[0].own ? 0.55 : 1} />}
+          <text x={PAGE_W - 24} y={PAGE_H - 22} textAnchor="end" fontSize={30} fill="#5c7a4f" opacity={0.8}>{p + 1}. sıra</text>
+          {/* the road: one way, left to right, on to the next row */}
+          {page[0] && <path d={`M 0 ${LANES[0]} H ${PAGE_W}`}
+                            fill="none" stroke="#e9d3a4" strokeWidth={66} opacity={page[0].own ? 0.55 : 1} />}
           {page.map((r, k) => {
             const y = LANES[k]!;
             if (!r) return (
